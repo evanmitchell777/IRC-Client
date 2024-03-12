@@ -1,0 +1,3 @@
+/home/abraxas/programming/Random/irc/build/CMakeFiles/irc_client.dir
+/home/abraxas/programming/Random/irc/build/CMakeFiles/edit_cache.dir
+/home/abraxas/programming/Random/irc/build/CMakeFiles/rebuild_cache.dir

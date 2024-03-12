@@ -1,0 +1,1 @@
+/usr/bin/c++ -rdynamic CMakeFiles/irc_client.dir/main.cpp.o -o irc_client  /usr/lib/x86_64-linux-gnu/libssl.so /usr/lib/x86_64-linux-gnu/libcrypto.so 
