@@ -6,8 +6,36 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <unistd.h>
+#include <chrono>
+#include <thread>
+#include <netdb.h>
+#include <fstream>
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
+
+std::string nickname;
+std::string hostname;
+std::string realname;
+std::string channel;
+std::string server;
+std::string port;
 
 int main() {
+    // Read configuration from JSON file
+    std::ifstream file("./config.json");
+    json jsonData;
+    file >> jsonData;
+    file.close();
+
+    // Assign values from JSON data to variables
+    nickname = jsonData["nickname"];
+    hostname = jsonData["hostname"];
+    realname = jsonData["realname"];
+    channel = jsonData["channel"];
+    server = jsonData["server"];
+    port = jsonData["port"];
+
     // Initialize OpenSSL
     SSL_library_init();
     SSL_CTX* sslContext = SSL_CTX_new(SSLv23_client_method());
@@ -16,21 +44,26 @@ int main() {
         return 1;
     }
 
+    // Get server address information
+    struct addrinfo hints, *serverInfo;
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_INET; // Use IPv4
+    hints.ai_socktype = SOCK_STREAM; // TCP socket
+    int status = getaddrinfo(server.c_str(), port.c_str(), &hints, &serverInfo);
+    if (status != 0) {
+        std::cerr << "getaddrinfo error: " << gai_strerror(status) << std::endl;
+        return 1;
+    }
+
     // Create socket
-    int clientSocket = socket(AF_INET, SOCK_STREAM, 0);
+    int clientSocket = socket(serverInfo->ai_family, serverInfo->ai_socktype, serverInfo->ai_protocol);
     if (clientSocket == -1) {
         std::cerr << "Socket creation failed" << std::endl;
         return 1;
     }
 
-    // Specify server address
-    sockaddr_in serverAddress;
-    serverAddress.sin_family = AF_INET;
-    serverAddress.sin_port = htons(6697);
-    serverAddress.sin_addr.s_addr = inet_addr("108.181.30.70");
-
     // Connect to server
-    if (connect(clientSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0) {
+    if (connect(clientSocket, serverInfo->ai_addr, serverInfo->ai_addrlen) == -1) {
         std::cerr << "Connection to server failed" << std::endl;
         return 1;
     }
@@ -47,20 +80,18 @@ int main() {
         return 1;
     }
 
+    // Enter message
+    // std::cout << "Enter message: ";
+    // std::string message;
+    // std::getline(std::cin, message);
+////////////////////////////////////////////////////////// working here 
+    std::string nickCommand = "NICK " + nickname + "\r\n";
+    SSL_write(ssl, nickCommand.c_str(), nickCommand.size());
 
+    std::string userCommand = "USER " + nickname + " " + hostname + " " + hostname + " :" + realname + "\r\n";
+    SSL_write(ssl, userCommand.c_str(), userCommand.size());
 
-//send nickname
-//    std::string nick = "NICK NICKNAME|cpp\r\n";
-//    send(clientSocket, nick.c_str(),nick.size(), 0);
-/////////////////////////////////////////////////////
-
-
-
-//send hostname 
-//std::string hostname = "USER your_username hostname servername :hostnameyou\r\n";
-//send(clientSocket,hostname.c_str(), hostname.size(),0);
-
-  char buffer[1024];
+    char buffer[1024];
     while (true) {
         int bytes_read = SSL_read(ssl, buffer, sizeof(buffer) - 1);
         if (bytes_read < 0) {
@@ -72,16 +103,33 @@ int main() {
         } else {
             buffer[bytes_read] = '\0'; // Null-terminate the received data
             std::cout << buffer << std::endl;
+
+            if (strstr(buffer, "NOTICE * :*** You have not registered")) {
+                // Register the nickname
+                std::string registerCommand = "PRIVMSG NickServ :REGISTER MyPassword MyEmailAddress\r\n";
+                SSL_write(ssl, registerCommand.c_str(), registerCommand.size());
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+            // Check if identified and then join the channel
+            std::string join_msg = "JOIN " + channel + "\r\n";
+            SSL_write(ssl, join_msg.c_str(), join_msg.size());
+
+            std::cout << ": ";
+            std::string message;
+            std::getline(std::cin, message);
+
+            std::string privmsgCommand = "PRIVMSG " + channel + " :" + message + "\r\n";
+            SSL_write(ssl, privmsgCommand.c_str(), privmsgCommand.size());
         }
     }
 
-
-
     // Cleanup
-      SSL_shutdown(ssl);
-      SSL_free(ssl);
-      SSL_CTX_free(sslContext);
-      close(clientSocket);
+    SSL_shutdown(ssl);
+    SSL_free(ssl);
+    SSL_CTX_free(sslContext);
+    close(clientSocket);
 
     return 0;
 }
