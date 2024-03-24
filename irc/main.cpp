@@ -80,11 +80,6 @@ int main() {
         return 1;
     }
 
-    // Enter message
-    // std::cout << "Enter message: ";
-    // std::string message;
-    // std::getline(std::cin, message);
-////////////////////////////////////////////////////////// working here 
     std::string nickCommand = "NICK " + nickname + "\r\n";
     SSL_write(ssl, nickCommand.c_str(), nickCommand.size());
 
@@ -133,3 +128,4 @@ int main() {
 
     return 0;
 }
+
